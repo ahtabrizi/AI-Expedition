@@ -71,7 +71,7 @@ class YOLOv1(nn.Module):
             nn.Flatten(),
             # FC 1
             nn.Linear(config.S * config.S * 1024, 4096),
-            nn.Dropout(),
+            nn.Dropout(p=0.5),
             nn.LeakyReLU(negative_slope=0.1),
             # FC 2
             nn.Linear(4096, config.S * config.S * self.depth),
@@ -81,35 +81,3 @@ class YOLOv1(nn.Module):
 
     def forward(self, x):
         return torch.reshape(self.model.forward(x), (x.size(dim=0), config.S, config.S, self.depth))
-
-
-class Probe(nn.Module):
-    names = set()
-
-    def __init__(self, name, forward=None):
-        super().__init__()
-
-        assert name not in self.names, f"Probe named '{name}' already exists"
-        self.name = name
-        self.names.add(name)
-        self.forward = self.probe_func_factory(probe_size if forward is None else forward)
-
-    def probe_func_factory(self, func):
-        def f(x):
-            print(f"\nProbe '{self.name}':")
-            func(x)
-            return x
-
-        return f
-
-
-def probe_size(x):
-    print(x.size())
-
-
-def probe_mean(x):
-    print(torch.mean(x).item())
-
-
-def probe_dist(x):
-    print(torch.min(x).item(), "|", torch.median(x).item(), "|", torch.max(x).item())

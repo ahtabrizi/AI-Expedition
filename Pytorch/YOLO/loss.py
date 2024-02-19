@@ -1,8 +1,11 @@
+import os
 import torch
 from torch import nn
 
 import config
 from Pytorch.utils.iou import get_iou
+
+DEBUG = os.getenv("DEBUG", 0) != 0
 
 
 def bbox_attr(data, i):
@@ -23,6 +26,11 @@ class Yolov1Loss(nn.Module):
         self.S = config.S
         self.B = config.B
         self.C = config.C
+
+    def mse_loss(self, a, b):
+        flattened_a = torch.flatten(a, end_dim=-2)
+        flattened_b = torch.flatten(b, end_dim=-2).expand_as(flattened_a)
+        return self.mse(flattened_a, flattened_b)
 
     # y = [classes[20],C1, x1,y1,w1,h1, C2, x2,y2,w2,h2]
     def forward(self, preds, targets):
@@ -49,35 +57,34 @@ class Yolov1Loss(nn.Module):
         noobj_ij = ~obj_ij
 
         # XY losses
-        x_loss = self.mse(obj_ij * bbox_attr(preds, 1), obj_ij * bbox_attr(targets, 1))
-        y_loss = self.mse(obj_ij * bbox_attr(preds, 2), obj_ij * bbox_attr(targets, 2))
+        x_loss = self.mse_loss(obj_ij * bbox_attr(preds, 1), obj_ij * bbox_attr(targets, 1))
+        y_loss = self.mse_loss(obj_ij * bbox_attr(preds, 2), obj_ij * bbox_attr(targets, 2))
         xy_loss = x_loss + y_loss
 
         # WH losses
-
         p_width = bbox_attr(preds, 3)  # (batch, S, S, B)
         t_width = bbox_attr(targets, 3)  # (batch, S, S, B)
 
         # since predicted width can be negative we use abs. To accomodate for gradient going to zero,
         # we add epsilon. To preserve gradient direction we add sign
-        width_loss = self.mse(
+        width_loss = self.mse_loss(
             obj_ij * torch.sign(p_width) * torch.sqrt(torch.abs(p_width) + config.EPSILON),
             obj_ij * torch.sqrt(t_width),
         )
         p_height = bbox_attr(preds, 4)  # (batch, S, S, B)
         t_height = bbox_attr(targets, 4)  # (batch, S, S, B)
-        height_loss = self.mse(
+        height_loss = self.mse_loss(
             obj_ij * torch.sign(p_height) * torch.sqrt(torch.abs(p_height) + config.EPSILON),
             obj_ij * torch.sqrt(t_height),
         )
         wh_loss = width_loss + height_loss
 
         # Condifdence losses
-        obj_confidence_loss = self.mse(obj_ij * bbox_attr(preds, 0), obj_ij * bbox_attr(targets, 0))
-        noobj_confidence_loss = self.mse(noobj_ij * bbox_attr(preds, 0), noobj_ij * bbox_attr(targets, 0))
+        obj_confidence_loss = self.mse_loss(obj_ij * bbox_attr(preds, 0), obj_ij * bbox_attr(targets, 0))
+        noobj_confidence_loss = self.mse_loss(noobj_ij * bbox_attr(preds, 0), noobj_ij * bbox_attr(targets, 0))
 
         # Class losses
-        class_loss = self.mse(obj_i * preds[..., : config.C], obj_i * targets[..., : config.C])
+        class_loss = self.mse_loss(obj_i * preds[..., : config.C], obj_i * targets[..., : config.C])
         total_loss = (
             self.lambda_coord * (xy_loss + wh_loss)
             + obj_confidence_loss
@@ -85,13 +92,28 @@ class Yolov1Loss(nn.Module):
             + class_loss
         )
 
+        if DEBUG:
+            print("X Loss:", x_loss.item())
+            print("Y Loss:", y_loss.item())
+            print("XY Loss:", xy_loss.item())
+
+            print("Width Loss:", width_loss.item())
+            print("Height Loss:", height_loss.item())
+            print("WH Loss:", wh_loss.item())
+
+            print("Object Confidence Loss:", obj_confidence_loss.item())
+            print("No Object Confidence Loss:", noobj_confidence_loss.item())
+
+            print("Class Loss:", class_loss.item())
+
+            print("Total Loss:", total_loss.item())
+
         return total_loss
 
 
 if __name__ == "__main__":
     loss = Yolov1Loss()
     size = (3, config.S, config.S, config.B * 5 + config.C)
-    print(size)
     preds = torch.randn(size)
     targets = torch.abs(torch.randn(size))
     loss(preds, targets)
