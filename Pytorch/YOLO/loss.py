@@ -3,7 +3,7 @@ import torch
 from torch import nn
 
 import config
-from Pytorch.utils.iou import get_iou
+from utils import get_iou
 
 DEBUG = os.getenv("DEBUG", 0) != 0
 
@@ -54,7 +54,7 @@ class Yolov1Loss(nn.Module):
 
         # exists * responsible
         obj_ij = obj_i * responsible
-        noobj_ij = ~obj_ij
+        noobj_ij = 1 - obj_ij
 
         # XY losses
         x_loss = self.mse_loss(obj_ij * bbox_attr(preds, 1), obj_ij * bbox_attr(targets, 1))

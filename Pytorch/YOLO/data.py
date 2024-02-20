@@ -2,9 +2,9 @@ import random
 
 from tqdm import tqdm
 import torch
-from torchvision.datasets.voc import VOCDetection
+from torchvision.datasets.voc import VOCDetection, ET_parse, Image
 from torch.utils.data import Dataset
-import torchvision.transforms as T
+import torchvision.transforms.v2 as T
 import torchvision.transforms.functional as TF
 
 
@@ -20,14 +20,23 @@ class YoloPascalVocDataset(Dataset):
     @param normalize A boolean indicating whether to normalize the images.
     @param augment A boolean indicating whether to augment the images.
     """
-    def __init__(self, type, normalize=False, augment=False) -> None:
 
+    def __init__(self, type, normalize=False, augment=False) -> None:
+        download = False
+        if not os.path.exists(os.path.join(config.DATA_PATH, "VOCdevkit")):
+            download = True
         self.dataset = VOCDetection(
             root=config.DATA_PATH,
             year="2012",
             image_set=("train" if type == "train" else "val"),
-            download=True,
-            transform=T.Compose([T.ToTensor(), T.Resize(config.IMAGE_SIZE)]),
+            download=download,
+            transform=T.Compose(
+                [
+                    T.PILToTensor(),
+                    T.Resize(config.IMAGE_SIZE),
+                    T.ToDtype(torch.float32, scale=True),
+                ]
+            ),
         )
 
         self.normalize = normalize
@@ -38,7 +47,7 @@ class YoloPascalVocDataset(Dataset):
         index = 0
         if len(self.classes) == 0:
             print("Generating class index")
-            for i, data_pair in enumerate(tqdm(self.dataset, desc=f"Generating class dict")):  
+            for i, data_pair in enumerate(tqdm(self.dataset, desc=f"Generating class dict")):
                 data, label = data_pair
                 for j, bbox_pair in enumerate(get_bounding_boxes(label)):
                     name, coords = bbox_pair
@@ -113,11 +122,11 @@ class YoloPascalVocDataset(Dataset):
                     bbox_index = boxes.get(cell, 0)
                     if bbox_index < config.B:
                         bbox_truth = (
+                            1.0,  # Confidence
                             (mid_x - col * grid_size_x) / config.IMAGE_SIZE[0],  # X coord relative to grid square
                             (mid_y - row * grid_size_y) / config.IMAGE_SIZE[1],  # Y coord relative to grid square
                             (x_max - x_min) / config.IMAGE_SIZE[0],  # Width
                             (y_max - y_min) / config.IMAGE_SIZE[1],  # Height
-                            1.0,  # Confidence
                         )
 
                         # Fill all bbox slots with current bbox (starting from current bbox slot, avoid overriding prev)

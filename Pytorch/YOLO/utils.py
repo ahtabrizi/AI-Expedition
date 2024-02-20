@@ -5,13 +5,15 @@ import numpy as np
 import config
 
 
-def clamp(x, limit):
-    if x > limit:
-        return x
-    return limit
-
-
 def get_iou(box_preds, box_labels):
+    """
+    @brief Calculate the Intersection over Union (IoU) between two sets of bounding boxes.
+
+    @param box_preds Tensor: Predicted bounding boxes
+    @param box_labels Tensor: Ground truth bounding boxes
+
+    @return Tensor: IoU values for each pair of bounding boxes.
+    """
     # points of each box
     box1_x1 = box_preds[..., 0] - box_preds[..., 2] / 2
     box1_x2 = box_preds[..., 0] + box_preds[..., 2] / 2

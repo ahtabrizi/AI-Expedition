@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 import numpy as np
 import torch
+
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 
@@ -9,10 +10,12 @@ import config
 from model import YOLOv1
 from data import YoloPascalVocDataset
 from loss import Yolov1Loss
+from tqdm import tqdm
 
 
 def main():
     device = "cuda" if torch.cuda.is_available else "cpu"
+    torch.autograd.set_detect_anomaly(True)  # Check for nan loss
     model = YOLOv1().to(device)
     loss_fn = Yolov1Loss()
 
@@ -23,11 +26,23 @@ def main():
     test_data = YoloPascalVocDataset("test", normalize=True, augment=False)
 
     train_loader = DataLoader(
-        train_data, batch_size=config.BATCH_SIZE, num_workers=8, persistent_workers=True, drop_last=True, shuffle=True
+        train_data,
+        batch_size=config.BATCH_SIZE,
+        num_workers=2,
+        persistent_workers=True,
+        drop_last=True,
+        shuffle=True,
+        pin_memory=True,
     )
 
     test_loader = DataLoader(
-        test_data, batch_size=config.BATCH_SIZE, num_workers=8, persistent_workers=True, drop_last=True, shuffle=True
+        test_data,
+        batch_size=config.BATCH_SIZE,
+        num_workers=2,
+        persistent_workers=True,
+        drop_last=True,
+        shuffle=True,
+        pin_memory=True,
     )
 
     # Create folders
@@ -50,10 +65,12 @@ def main():
         np.save(os.path.join(root, "test_errors"), test_errors)
 
     writer = SummaryWriter()
-    for epoch in config.EPOCHS:
+    for epoch in range(config.EPOCHS):
         model.train()
-        train_loss = 0
-        for data, labels, _ in train_loader:
+        epoch_loss = 0
+
+        tqdm_dataloader = tqdm(train_loader, leave=True, desc=f"Epoch {epoch + 1}/{config.EPOCHS}", dynamic_ncols=True)
+        for data, labels, _ in tqdm_dataloader:
             data = data.to(device)
             labels = labels.to(device)
 
@@ -64,13 +81,16 @@ def main():
 
             optimizer.step()
 
-            train_loss += loss.item()
+            epoch_loss += loss.item()
+            # update progress bar
+            tqdm_dataloader.set_postfix(loss=loss.item())
 
-        train_loss = train_loss / len(train_loader)
+        tqdm_dataloader.close()
+        epoch_loss = epoch_loss / len(train_loader)
 
-        train_losses = np.append(train_losses, [[epoch], [train_loss]], axis=1)
-        writer.add_scalar("Loss/train", train_loss, epoch)
-        print(f"Test Loss at epoch {epoch}: {train_loss}")
+        train_losses = np.append(train_losses, [[epoch], [epoch_loss]], axis=1)
+        writer.add_scalar("Loss/train", epoch_loss, epoch)
+        print(f"\nTrain Loss at epoch {epoch}: {epoch_loss}\n")
 
         if epoch % 4 == 0:
             model.eval()
@@ -86,10 +106,10 @@ def main():
                     test_loss += loss.item() / len(test_loader)
                     del data, labels
             test_losses = np.append(test_losses, [[epoch], [test_loss]], axis=1)
-            writer.add_scalar("Loss/test", test_loss, epoch)
+            writer.adds_scalar("Loss/test", test_loss, epoch)
             print(f"Test Loss at epoch {epoch}: {test_loss}")
             save_metrics()
-
+            torch.save(model.state_dict(), f"./yolo_v1_model_{epoch}_epoch.pth")
     save_metrics()
     torch.save(model.state_dict(), os.path.join(weight_dir, "final"))
 
