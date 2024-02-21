@@ -3,24 +3,55 @@ import json
 
 import config
 
-## @brief Loads class dictionary from a JSON file.
-#  @return A dictionary with class names and their corresponding indices.
+
 def load_class_dict():
+    """
+    Load class dictionary from the classes file.
+
+    Returns:
+    - dict: The loaded class dictionary.
+    """
     if os.path.exists(config.CLASSES_PATH):
         with open(config.CLASSES_PATH, "r") as file:
             return json.load(file)
     return {}
 
-## @brief Saves class dictionary to a JSON file.
-#  @param obj The dictionary object to save.
+
+def load_class_array():
+    """
+    Load class array from the class dictionary.
+
+    Returns:
+    - list: The loaded class array.
+    """
+    classes = load_class_dict()
+    result = [None for _ in range(len(classes))]
+    for c, i in classes.items():
+        result[i] = c
+    return result
+
+
 def save_class_dict(obj):
+    """
+    Save class dictionary to the classes file.
+
+    Parameters:
+    - obj (dict): The class dictionary to save.
+    """
     with open(config.CLASSES_PATH, "w") as file:
         json.dump(obj, file, indent=2)
 
-## @brief Extracts bounding boxes from label data.
-#  @param label The label data containing bounding box information.
-#  @return A list of tuples containing class names and their bounding box coordinates.
+
 def get_bounding_boxes(label):
+    """
+    Get bounding boxes from the label data.
+
+    Parameters:
+    - label (dict): The label data containing annotations.
+
+    Returns:
+    - list: List of bounding boxes with class names and coordinates.
+    """
     size = label["annotation"]["size"]
     width, height = int(size["width"]), int(size["height"])
 
@@ -42,10 +73,17 @@ def get_bounding_boxes(label):
         boxes.append((name, coords))
     return boxes
 
-## @brief Scales a bounding box coordinate.
-#  @param coord The original coordinate to scale.
-#  @param center The center point for scaling.
-#  @param scale The scaling factor.
-#  @return The scaled coordinate.
+
 def scale_bbox_coord(coord, center, scale):
+    """
+    Scale bounding box coordinate.
+
+    Parameters:
+    - coord (int): The coordinate value to scale.
+    - center (int): The center value for scaling.
+    - scale (float): The scaling factor.
+
+    Returns:
+    - int: The scaled coordinate value.
+    """
     return ((coord - center) * scale) + center

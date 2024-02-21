@@ -14,6 +14,9 @@ from tqdm import tqdm
 
 
 def main():
+    """
+    Main function for training the YOLOv1 model.
+    """
     device = "cuda" if torch.cuda.is_available else "cpu"
     torch.autograd.set_detect_anomaly(True)  # Check for nan loss
     model = YOLOv1().to(device)
@@ -59,6 +62,9 @@ def main():
     test_errors = np.empty((2, 0))
 
     def save_metrics():
+        """
+        Save training and testing metrics to files.
+        """
         np.save(os.path.join(root, "train_losses"), train_losses)
         np.save(os.path.join(root, "test_losses"), test_losses)
         np.save(os.path.join(root, "train_errors"), train_errors)
@@ -69,7 +75,7 @@ def main():
         model.train()
         epoch_loss = 0
 
-        tqdm_dataloader = tqdm(train_loader, leave=True, desc=f"Epoch {epoch + 1}/{config.EPOCHS}", dynamic_ncols=True)
+        tqdm_dataloader = tqdm(train_loader, leave=True, desc=f"Epoch {epoch}/{config.EPOCHS}", dynamic_ncols=True)
         for data, labels, _ in tqdm_dataloader:
             data = data.to(device)
             labels = labels.to(device)
@@ -94,9 +100,12 @@ def main():
 
         if epoch % 4 == 0:
             model.eval()
+            test_loss = 0
             with torch.no_grad():
-                test_loss = 0
-                for data, labels, _ in test_loader:
+                tqdm_dataloader = tqdm(
+                    test_loader, leave=True, desc=f"Epoch {epoch}/{config.EPOCHS}", dynamic_ncols=True
+                )
+                for data, labels, _ in tqdm_dataloader:
                     data = data.to(device)
                     labels = labels.to(device)
 
@@ -105,8 +114,9 @@ def main():
 
                     test_loss += loss.item() / len(test_loader)
                     del data, labels
+            tqdm_dataloader.close()
             test_losses = np.append(test_losses, [[epoch], [test_loss]], axis=1)
-            writer.adds_scalar("Loss/test", test_loss, epoch)
+            writer.add_scalar("Loss/test", test_loss, epoch)
             print(f"Test Loss at epoch {epoch}: {test_loss}")
             save_metrics()
             torch.save(model.state_dict(), f"./yolo_v1_model_{epoch}_epoch.pth")

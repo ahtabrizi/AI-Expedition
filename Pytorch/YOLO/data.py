@@ -21,7 +21,7 @@ class YoloPascalVocDataset(Dataset):
     @param augment A boolean indicating whether to augment the images.
     """
 
-    def __init__(self, type, normalize=False, augment=False) -> None:
+    def __init__(self, type, normalize=False, augment=False, return_index=False) -> None:
         download = False
         if not os.path.exists(os.path.join(config.DATA_PATH, "VOCdevkit")):
             download = True
@@ -41,6 +41,7 @@ class YoloPascalVocDataset(Dataset):
 
         self.normalize = normalize
         self.augment = augment
+        self.return_index = return_index
         self.classes = load_class_dict()
 
         # Generate class index if needed
@@ -135,6 +136,8 @@ class YoloPascalVocDataset(Dataset):
                         ground_truth[row, col, bbox_start:] = torch.tensor(bbox_truth).repeat(config.B - bbox_index)
                         boxes[cell] = bbox_index + 1
 
+        if self.return_index:
+            return data, ground_truth, original_data, i
         return data, ground_truth, original_data
 
     def __len__(self):

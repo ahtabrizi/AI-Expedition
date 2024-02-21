@@ -108,7 +108,7 @@ class Yolov1Loss(nn.Module):
 
             print("Total Loss:", total_loss.item())
 
-        return total_loss
+        return total_loss / config.BATCH_SIZE
 
 
 if __name__ == "__main__":
