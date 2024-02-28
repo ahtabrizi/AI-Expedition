@@ -120,8 +120,9 @@ def nms(bboxes, iou_threshold):
             continue
 
         curbox = bboxes[i]
-        ious = get_overlap(curbox[..., 0:4], bboxes[..., 0:4], "corner")
+        ious = get_iou(curbox[..., 0:4], bboxes[..., 0:4], "corner")
 
+        # curbox = [x1, y1, x2, y2, confidence, class_index]
         for j in range(i + 1, num_boxes):
             if i != j and curbox[0, -1] == bboxes[j, 0, -1] and ious[j].item() > iou_threshold:
                 suppressed.add(j)
